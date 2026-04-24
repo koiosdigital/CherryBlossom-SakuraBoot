@@ -63,9 +63,7 @@ SECTIONS
     __exidx_end = .;
   } >FLASH
 
-  _sidata = LOADADDR(.data);
-
-  .data : AT(_sidata)
+  .data :
   {
     . = ALIGN(4);
     _sdata = .;
@@ -75,7 +73,9 @@ SECTIONS
     *(.RamFunc*)
     . = ALIGN(4);
     _edata = .;
-  } >RAM
+  } >RAM AT> FLASH
+
+  _sidata = LOADADDR(.data);
 
   .bss (NOLOAD) :
   {
