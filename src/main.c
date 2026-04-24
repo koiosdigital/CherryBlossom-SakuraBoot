@@ -80,18 +80,11 @@ static bool app_is_valid(void) {
 
 static void jump_to_app(void) {
   uint32_t *vectors = (uint32_t *)APP_VECTOR_ADDR;
-
-  /* Deinit HAL if it was initialized (it wasn't in fast path, but be safe) */
-  __disable_irq();
-
   SCB->VTOR = APP_VECTOR_ADDR;
-  __set_MSP(vectors[0]);
-
-  void (*app_reset)(void) = (void (*)(void))vectors[1];
-  app_reset();
-
-  /* Should never reach here */
-  while (1) {}
+  /* Inline asm: load SP and PC into registers, then MSR+BX in one block.
+   * Must be asm to avoid any stack-relative access after MSP change. */
+  asm volatile("MSR msp, %0\n  bx %1" : : "r"(vectors[0]), "r"(vectors[1]));
+  __builtin_unreachable();
 }
 
 static void SystemClock_Config(void) {

@@ -77,44 +77,55 @@ def main():
     parser.add_argument("output", type=Path, help="Output factory image")
     parser.add_argument("--bootloader-size", type=int, default=DEFAULT_BOOTLOADER_SIZE,
                         help=f"Bootloader region size in bytes (default: {DEFAULT_BOOTLOADER_SIZE})")
+    parser.add_argument("--bootloader-bin", type=Path, default=None,
+                        help="Use local bootloader binary instead of downloading from GitHub")
     args = parser.parse_args()
 
     if not args.firmware_with_meta.exists():
         print(f"Error: Input file not found: {args.firmware_with_meta}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Fetching latest SakuraBoot release from GitHub...")
-    release_info = fetch_latest_release_info()
-    release_tag = release_info.get("tag_name", "unknown")
-    print(f"Latest release: {release_tag}")
-
-    bootloader_asset = None
-    for asset in release_info.get("assets", []):
-        if asset["name"] == BOOTLOADER_ASSET_NAME:
-            bootloader_asset = asset
-            break
-
-    if not bootloader_asset:
-        print(f"Error: Asset '{BOOTLOADER_ASSET_NAME}' not found in release {release_tag}", file=sys.stderr)
-        sys.exit(1)
-
-    reported_size = bootloader_asset.get("size", 0)
-    print(f"Bootloader size (from API): {reported_size} bytes")
-
-    if reported_size >= args.bootloader_size:
-        print(f"Error: Bootloader ({reported_size} bytes) exceeds max ({args.bootloader_size} bytes)",
-              file=sys.stderr)
-        sys.exit(1)
-
-    bootloader_data = get_cached_bootloader(release_tag, reported_size)
-    if bootloader_data:
-        print(f"Using cached bootloader for {release_tag}")
+    if args.bootloader_bin:
+        # Use local bootloader binary
+        if not args.bootloader_bin.exists():
+            print(f"Error: Local bootloader not found: {args.bootloader_bin}", file=sys.stderr)
+            sys.exit(1)
+        bootloader_data = args.bootloader_bin.read_bytes()
+        print(f"Using local bootloader: {args.bootloader_bin} ({len(bootloader_data)} bytes)")
     else:
-        print(f"Downloading {BOOTLOADER_ASSET_NAME}...")
-        download_url = bootloader_asset["browser_download_url"]
-        bootloader_data = download_bootloader(download_url)
-        cache_bootloader(release_tag, bootloader_data)
-        print(f"Cached bootloader for {release_tag}")
+        # Download from GitHub
+        print(f"Fetching latest SakuraBoot release from GitHub...")
+        release_info = fetch_latest_release_info()
+        release_tag = release_info.get("tag_name", "unknown")
+        print(f"Latest release: {release_tag}")
+
+        bootloader_asset = None
+        for asset in release_info.get("assets", []):
+            if asset["name"] == BOOTLOADER_ASSET_NAME:
+                bootloader_asset = asset
+                break
+
+        if not bootloader_asset:
+            print(f"Error: Asset '{BOOTLOADER_ASSET_NAME}' not found in release {release_tag}", file=sys.stderr)
+            sys.exit(1)
+
+        reported_size = bootloader_asset.get("size", 0)
+        print(f"Bootloader size (from API): {reported_size} bytes")
+
+        if reported_size >= args.bootloader_size:
+            print(f"Error: Bootloader ({reported_size} bytes) exceeds max ({args.bootloader_size} bytes)",
+                  file=sys.stderr)
+            sys.exit(1)
+
+        bootloader_data = get_cached_bootloader(release_tag, reported_size)
+        if bootloader_data:
+            print(f"Using cached bootloader for {release_tag}")
+        else:
+            print(f"Downloading {BOOTLOADER_ASSET_NAME}...")
+            download_url = bootloader_asset["browser_download_url"]
+            bootloader_data = download_bootloader(download_url)
+            cache_bootloader(release_tag, bootloader_data)
+            print(f"Cached bootloader for {release_tag}")
 
     actual_size = len(bootloader_data)
     print(f"Bootloader size (actual): {actual_size} bytes")
