@@ -1,0 +1,23 @@
+# Build output
+build/
+*.elf
+*.bin
+*.hex
+*.map
+*.o
+*.obj
+*.d
+*.su
+
+# IDE
+.vscode/
+.idea/
+compile_commands.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc

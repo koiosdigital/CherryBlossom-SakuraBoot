@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ARM toolchain
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        with:
+          release: '15.2.Rel1'
+
+      - name: Configure
+        run: >
+          cmake -B build/Release
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_TOOLCHAIN_FILE=cmake/gcc-arm-none-eabi.cmake
+          -G "Unix Makefiles"
+
+      - name: Build
+        run: cmake --build build/Release
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sakura-boot
+          path: build/Release/sakura_boot.bin
+          if-no-files-found: error
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: sakura-boot
+          path: release/
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "SakuraBoot ${{ github.ref_name }}"
+          body: "Automated SakuraBoot build for tag ${{ github.ref_name }}."
+          files: release/sakura_boot.bin

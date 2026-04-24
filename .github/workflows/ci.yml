@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        build_type: [Debug, Release]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ARM toolchain
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        with:
+          release: '15.2.Rel1'
+
+      - name: Configure
+        run: >
+          cmake -B build/${{ matrix.build_type }}
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DCMAKE_TOOLCHAIN_FILE=cmake/gcc-arm-none-eabi.cmake
+          -G "Unix Makefiles"
+
+      - name: Build
+        run: cmake --build build/${{ matrix.build_type }}
+
+      - name: Upload artifact
+        if: matrix.build_type == 'Release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sakura-boot
+          path: |
+            build/Release/sakura_boot.bin
+            build/Release/sakura_boot.hex
+          if-no-files-found: error
