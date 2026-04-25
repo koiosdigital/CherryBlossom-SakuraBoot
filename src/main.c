@@ -6,17 +6,17 @@
 
 #include <string.h>
 
-/* Boot magic — shared with application, stored at top of RAM */
+/* Boot magic — shared with application via .boot_magic linker section.
+ * Placed at start of RAM (0x20000000), not touched by startup code. */
 #define REQUEST_BOOTLOADER  0x5984E3FA6CA1589BULL
-#define BOOT_MAGIC_ADDR     ((volatile uint64_t *)((uint32_t)&_estack - 8))
+extern uint64_t _boot_magic;
+#define BOOT_MAGIC_ADDR     ((volatile uint64_t *)&_boot_magic)
 
 /* Application vector table address (after bootloader + metadata page) */
 #define APP_VECTOR_ADDR     0x08002400U
 #define APP_FLASH_END       0x0800FC00U  /* NVS starts here */
 #define RAM_START           0x20000000U
 #define RAM_END             0x20005000U
-
-extern uint32_t _estack;
 
 static void SystemClock_Config(void);
 static bool app_is_valid(void);
@@ -38,7 +38,6 @@ int main(void) {
   HAL_Init();
   SystemClock_Config();
   led_init();
-  led_set_mode(LED_MODE_BREATHE);
 
   /* CAN at 50kbps, filter only admin ID 0x3F0 */
   can_hw_init(50000);

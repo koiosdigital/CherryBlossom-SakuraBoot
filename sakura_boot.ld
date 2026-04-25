@@ -92,6 +92,15 @@ SECTIONS
     . = ALIGN(4);
   } >FLASH
 
+  /* Boot magic: 8 bytes at start of RAM, not touched by startup code.
+   * Survives SYSRESETREQ. App writes here to request bootloader entry. */
+  .boot_magic (NOLOAD) :
+  {
+    . = ALIGN(8);
+    _boot_magic = .;
+    . += 8;
+  } >RAM
+
   .data :
   {
     . = ALIGN(4);

@@ -117,7 +117,6 @@ static void respond_nack(void) {
  *--------------------------------------------------------------------*/
 
 static void handle_connect(void) {
-  led_set_mode(LED_MODE_BLINK);
 
   uint32_t out[6];
   memset(out, 0, sizeof(out));
@@ -178,7 +177,7 @@ static void handle_eof(void) {
   out[2] = pages_written;
   respond_ack(CMD_RX_EOF, out, 4);
 
-  led_set_mode(LED_MODE_BREATHE);
+  led_activity();
 }
 
 static void handle_complete(void) {
@@ -204,6 +203,8 @@ static void dispatch(uint8_t *buf, uint8_t msglen) {
   uint32_t data[MSG_MAX / 4];
   memcpy(data, buf, msglen);
 
+  led_activity();
+
   uint8_t cmd = buf[2]; /* cmd byte */
   switch (cmd) {
   case CMD_CONNECT:
@@ -226,20 +227,31 @@ static void dispatch(uint8_t *buf, uint8_t msglen) {
 
 static void try_parse(void) {
   while (rx_pos >= MSG_MIN) {
-    /* Check for resync */
+    /* Check for resync -- skip bytes until we find a valid STX1+STX2 pair */
     if (sync_state & CF_NEED_SYNC) {
-      uint8_t *found = memchr(rx_buf, MSG_STX1, rx_pos);
-      if (found) {
-        uint8_t skip = found - rx_buf;
-        if (skip > 0) {
-          rx_pos -= skip;
-          memmove(rx_buf, rx_buf + skip, rx_pos);
+      uint8_t *p = rx_buf;
+      uint8_t *end = rx_buf + rx_pos;
+      while (p + 1 < end) {
+        if (p[0] == MSG_STX1 && p[1] == MSG_STX2)
+          break;
+        p++;
+      }
+      if (p + 1 >= end) {
+        /* Keep last byte if it's STX1 (could be start of next frame) */
+        if (rx_pos > 0 && rx_buf[rx_pos - 1] == MSG_STX1) {
+          rx_buf[0] = MSG_STX1;
+          rx_pos = 1;
+        } else {
+          rx_pos = 0;
         }
-        sync_state &= ~CF_NEED_SYNC;
-      } else {
-        rx_pos = 0;
         return;
       }
+      uint8_t skip = p - rx_buf;
+      if (skip > 0) {
+        rx_pos -= skip;
+        memmove(rx_buf, rx_buf + skip, rx_pos);
+      }
+      sync_state &= ~CF_NEED_SYNC;
     }
 
     if (rx_pos < MSG_MIN)
