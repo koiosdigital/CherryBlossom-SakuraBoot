@@ -79,10 +79,12 @@ static bool app_is_valid(void) {
 
 static void jump_to_app(void) {
   uint32_t *vectors = (uint32_t *)APP_VECTOR_ADDR;
+  uint32_t sp = vectors[0];
+  uint32_t pc = vectors[1];
   SCB->VTOR = APP_VECTOR_ADDR;
-  /* Inline asm: load SP and PC into registers, then MSR+BX in one block.
-   * Must be asm to avoid any stack-relative access after MSP change. */
-  asm volatile("MSR msp, %0\n  bx %1" : : "r"(vectors[0]), "r"(vectors[1]));
+  __DSB();
+  __ISB();
+  asm volatile("MSR msp, %0\n  bx %1" : : "r"(sp), "r"(pc) : "memory");
   __builtin_unreachable();
 }
 

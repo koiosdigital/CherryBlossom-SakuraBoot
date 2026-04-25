@@ -17,8 +17,8 @@ set(CMAKE_EXECUTABLE_SUFFIX_C       ".elf")
 
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 
-# MCU specific flags — cortex-m4 to match sakura_firmware (FCM32 clone)
-set(TARGET_FLAGS "-mcpu=cortex-m4 ")
+# MCU specific flags — STM32F103xB is Cortex-M3 (FCM32 clone is also M3-class)
+set(TARGET_FLAGS "-mcpu=cortex-m3 ")
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${TARGET_FLAGS}")
 set(CMAKE_ASM_FLAGS "${CMAKE_C_FLAGS} -x assembler-with-cpp -MMD -MP")
