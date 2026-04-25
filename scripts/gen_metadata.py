@@ -12,7 +12,7 @@ import argparse
 import struct
 import sys
 
-MAGIC = b"TERRABOOT_RaiseTheWorld\x00"  # 24 bytes
+MAGIC = b"SAKURA\x00\x00"  # 8 bytes (null-terminated + padding)
 DEFAULT_PAGE_SIZE = 1024  # 1KB for STM32F103
 
 
@@ -56,7 +56,7 @@ def generate_metadata(app_binary: bytes, page_size: int,
     """Generate metadata page.
 
     Structure (84 bytes):
-        char magic[24]          - "TERRABOOT_RaiseTheWorld\\0"
+        char magic[8]           - "SAKURA\\0\\0"
         uint32_t app_size       - Size of app in bytes
         uint64_t app_hash       - fasthash64 of app data
         uint32_t app_version    - 0x00XXYYZZ format
@@ -73,7 +73,7 @@ def generate_metadata(app_binary: bytes, page_size: int,
     variant_bytes = app_variant_name.encode('ascii', errors='replace').ljust(32, b'\x00')
 
     meta_without_crc = struct.pack(
-        '<24sIQI32s8s',
+        '<8sIQI32s8s',
         MAGIC,
         app_size,
         app_hash,
@@ -85,7 +85,7 @@ def generate_metadata(app_binary: bytes, page_size: int,
     meta_crc = fasthash32(meta_without_crc, 0)
 
     metadata = struct.pack(
-        '<24sIQI32s8sI',
+        '<8sIQI32s8sI',
         MAGIC,
         app_size,
         app_hash,
