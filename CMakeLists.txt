@@ -57,6 +57,7 @@ set(SOURCES
     src/flash.c
     src/can_boot.c
     src/crc16.c
+    src/fasthash.c
     src/led.c
 )
 

@@ -1,9 +1,11 @@
 #include "main.h"
 #include "can_boot.h"
+#include "fasthash.h"
 #include "flash.h"
 #include "led.h"
 #include "can_hw.h"
 
+#include <stddef.h>
 #include <string.h>
 
 /* Boot magic — shared with application via .boot_magic linker section.
@@ -12,11 +14,26 @@
 extern uint64_t _boot_magic;
 #define BOOT_MAGIC_ADDR     ((volatile uint64_t *)&_boot_magic)
 
-/* Application vector table address (after bootloader + metadata page) */
-#define APP_VECTOR_ADDR     0x08002400U
+/* Flash layout */
+#define META_ADDR           0x08002000U
+#define APP_VECTOR_ADDR     0x08002400U  /* app starts after 1KB metadata page */
 #define APP_FLASH_END       0x0800FC00U  /* NVS starts here */
 #define RAM_START           0x20000000U
 #define RAM_END             0x20005000U
+#define APP_MAX_SIZE        (APP_FLASH_END - APP_VECTOR_ADDR)
+
+/* Metadata layout — must match scripts/gen_metadata.py byte-for-byte. */
+typedef struct __attribute__((packed)) {
+  char     magic[8];          /* "SAKURA\0\0" */
+  uint32_t app_size;
+  uint64_t app_hash;
+  uint32_t app_version;
+  char     app_variant_name[32];
+  uint8_t  reserved[8];
+  uint32_t meta_crc;
+} sakura_metadata_t;
+
+static const char META_MAGIC[8] = {'S', 'A', 'K', 'U', 'R', 'A', 0, 0};
 
 static void SystemClock_Config(void);
 static bool app_is_valid(void);
@@ -64,16 +81,30 @@ int main(void) {
 }
 
 static bool app_is_valid(void) {
+  const sakura_metadata_t *meta = (const sakura_metadata_t *)META_ADDR;
+
+  if (memcmp(meta->magic, META_MAGIC, sizeof(META_MAGIC)) != 0)
+    return false;
+
+  if (meta->app_size == 0 || meta->app_size > APP_MAX_SIZE)
+    return false;
+
+  uint32_t crc = fasthash32(meta, offsetof(sakura_metadata_t, meta_crc), 0);
+  if (crc != meta->meta_crc)
+    return false;
+
+  uint64_t hash = fasthash64((const void *)APP_VECTOR_ADDR, meta->app_size, 0);
+  if (hash != meta->app_hash)
+    return false;
+
   uint32_t *vectors = (uint32_t *)APP_VECTOR_ADDR;
   uint32_t sp = vectors[0];
   uint32_t pc = vectors[1];
-
   if (sp < RAM_START || sp > RAM_END)
     return false;
   if (pc < APP_VECTOR_ADDR || pc > APP_FLASH_END)
     return false;
-  if (sp == 0xFFFFFFFFU || pc == 0xFFFFFFFFU)
-    return false;
+
   return true;
 }
 
