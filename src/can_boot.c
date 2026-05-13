@@ -297,6 +297,20 @@ static void try_parse(void) {
       sync_state |= CF_NEED_VALID;
       respond_nack();
     }
+    /* Drop the first byte so the CF_NEED_SYNC scan on the next pass
+     * cannot re-find the same bad STX1 at rx_buf[0]. Without this, a
+     * frame that arrives well-framed (intact STX1+STX2 header) but with
+     * a bad CRC or trailer leaves rx_buf[0]=STX1, the scan immediately
+     * matches at offset 0, and we re-validate the same bytes forever —
+     * the bootloader silently locks up and never processes another
+     * packet for the rest of its lifetime, including subsequent OTA
+     * attempts. Dropping one byte forces forward progress; the resync
+     * scan picks up at the next genuine frame boundary (or empties the
+     * buffer if there isn't one). */
+    if (rx_pos > 0) {
+      rx_pos -= 1;
+      memmove(rx_buf, rx_buf + 1, rx_pos);
+    }
   }
 }
 
