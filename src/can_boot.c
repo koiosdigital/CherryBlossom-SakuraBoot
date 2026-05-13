@@ -8,7 +8,7 @@
 #include <string.h>
 
 /* Katapult protocol constants */
-#define PROTO_VERSION       0x00010100U  /* v1.1.0 */
+#define PROTO_VERSION       0x00020000U  /* v2.0.0 — per-device OTA on short_id */
 
 #define CMD_CONNECT         0x11
 #define CMD_RX_BLOCK        0x12
@@ -28,9 +28,12 @@
 #define MSG_MAX             128
 #define MSG_POS_LEN         3
 
-/* CAN IDs */
-#define CAN_ID_RX           0x3F0  /* host -> bootloader */
-#define CAN_ID_TX           0x3F1  /* bootloader -> host */
+/* Katapult TX CAN ID, set at ASSIGN_ID time by can_admin to
+ * (CAN_APP_RX_BASE | short_id). Zero means "not assigned yet" — the
+ * hardware filter doesn't pass any Katapult RX in that state, so we
+ * shouldn't have anything to TX either, but tx_poll defensively skips
+ * if this is still zero. */
+static uint32_t s_katapult_tx_id = 0;
 
 /* Application address */
 #define APP_START_ADDR      0x08002000U  /* metadata page start */
@@ -342,14 +345,22 @@ void can_boot_process_rx(const uint8_t *data, uint8_t dlc) {
   try_parse();
 }
 
+void can_boot_set_tx_id(uint32_t can_id) { s_katapult_tx_id = can_id; }
+
 void can_boot_tx_poll(void) {
-  /* Send pending TX data as 8-byte CAN frames on 0x3F1 */
+  /* Send pending TX data as 8-byte CAN frames on the assigned Katapult
+   * TX ID (0x400 | short_id). Skip silently if not yet assigned — the
+   * filter shouldn't have passed any Katapult RX to us either, so the
+   * tx_buf should be empty in that state. */
+  if (s_katapult_tx_id == 0)
+    return;
+
   while (tx_pos < tx_max) {
     if (!can_hw_tx_ready())
       return;
 
     CAN_HW_Message msg;
-    msg.std_id = CAN_ID_TX;
+    msg.std_id = s_katapult_tx_id;
     uint8_t avail = tx_max - tx_pos;
     msg.dlc = (avail > 8) ? 8 : avail;
     memcpy(msg.data, &tx_buf[tx_pos], msg.dlc);

@@ -55,7 +55,9 @@ set(SOURCES
     can/can_hw.c
     src/main.c
     src/flash.c
+    src/can_admin.c
     src/can_boot.c
+    src/can_helpers.c
     src/crc16.c
     src/fasthash.c
     src/led.c

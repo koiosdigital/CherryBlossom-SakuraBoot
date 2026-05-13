@@ -1,9 +1,11 @@
 #include "main.h"
+#include "can_admin.h"
 #include "can_boot.h"
+#include "can_hw.h"
+#include "can_protocol.h"
 #include "fasthash.h"
 #include "flash.h"
 #include "led.h"
-#include "can_hw.h"
 
 #include <stddef.h>
 #include <string.h>
@@ -56,23 +58,32 @@ int main(void) {
   SystemClock_Config();
   led_init();
 
-  /* CAN at 50kbps, filter only admin ID 0x3F0 */
+  /* CAN at 50kbps. Initial filter is admin-only — we acquire a
+   * short_id through the same QUERY_UNASSIGNED / ASSIGN_ID handshake
+   * the application uses, after which can_admin widens the filter to
+   * admin + our short_id and hands can_boot the Katapult TX ID. */
   can_hw_init(50000);
-  can_hw_set_filter(0x3F0, 0x000);
   can_hw_start();
+  can_admin_init(HW_TYPE_SAKURA_BOOT);
 
   can_boot_init();
 
   while (1) {
-    /* Poll CAN RX */
+    /* Drain CAN RX. Admin frames go to can_admin; everything that
+     * makes it past the hardware filter and isn't admin is a Katapult
+     * frame on our assigned short_id. */
     while (can_hw_rx_pending() > 0) {
       CAN_HW_Message msg;
       if (can_hw_receive(&msg)) {
-        can_boot_process_rx(msg.data, msg.dlc);
+        if (!can_admin_handle_frame(&msg)) {
+          can_boot_process_rx(msg.data, msg.dlc);
+        }
       }
     }
 
-    /* Try to send pending TX frames */
+    /* Admin TX first (small, low-rate) — Katapult bytes get drained
+     * on whatever slots the admin tick leaves. */
+    can_admin_tick();
     can_boot_tx_poll();
 
     /* Update LED */
