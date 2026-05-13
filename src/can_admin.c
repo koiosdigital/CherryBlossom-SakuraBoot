@@ -101,10 +101,15 @@ bool can_admin_handle_frame(const CAN_HW_Message *msg) {
     case CAN_ADMIN_RESET_SHORT_ID:
       /* Forget our short_id, drop Katapult TX, restore admin-only
        * filter, and become discoverable again. The host uses this to
-       * resync after losing track of its assignments. */
+       * resync after losing track of its assignments. Also clear any
+       * mid-flight Katapult state — if an OTA was in progress when the
+       * host force-resets us, the partially-filled tx_buf/rx_buf bytes
+       * would otherwise leak into the next session once we're
+       * reassigned. */
       s_state.short_id = 0;
       s_state.is_assigned = false;
       can_boot_set_tx_id(0);
+      can_boot_init();
       switch_to_admin_only_filter();
       break;
 

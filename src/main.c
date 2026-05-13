@@ -61,10 +61,17 @@ int main(void) {
   /* CAN at 50kbps. Initial filter is admin-only — we acquire a
    * short_id through the same QUERY_UNASSIGNED / ASSIGN_ID handshake
    * the application uses, after which can_admin widens the filter to
-   * admin + our short_id and hands can_boot the Katapult TX ID. */
+   * admin + our short_id and hands can_boot the Katapult TX ID.
+   *
+   * Order matters: can_hw_init leaves the controller in reset mode,
+   * can_admin_init writes the filter registers (which is only valid
+   * in reset mode on the FCM32/SJA1000 IP), then can_hw_start exits
+   * reset mode. Calling can_hw_start before the filter write would
+   * leave the controller listening on whatever the filter registers
+   * happen to power up to — likely accepting nothing. */
   can_hw_init(50000);
-  can_hw_start();
   can_admin_init(HW_TYPE_SAKURA_BOOT);
+  can_hw_start();
 
   can_boot_init();
 
